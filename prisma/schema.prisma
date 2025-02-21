@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRoles {
+  admin
+  editor
+  reviewer
+}
+
+model DespachoSeccional {
+  id             String                @id @default(auto()) @map("_id") @db.ObjectId
+  seccional      String
+  nombre         String
+  numero         Int
+  usuariosIds    String[]              @db.ObjectId
+  usuarios       User[]                @relation(fields: [usuariosIds], references: [id])
+  calificaciones CalificacionPeriodo[]
+}
+
+model User {
+  id                        String                    @id @default(auto()) @map("_id") @db.ObjectId
+  username                  String
+  password                  String
+  passwordExpiresAt         DateTime
+  sessions                  Session[]
+  roles                     UserRoles[]
+  despachosSeccionalIds     String[]                  @db.ObjectId
+  despachosSeccional        DespachoSeccional[]       @relation(fields: [despachosSeccionalIds], references: [id])
+  observacionesCalificacion ObservacionCalificacion[]
+  preferencias              Preferencias?
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(references: [id], fields: [userId], onDelete: Cascade)
+  expiresAt DateTime
+  username  String
+}
+
+model Preferencias {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(references: [id], fields: [userId], onDelete: Cascade)
+
+  // Filtros de calificaciones
+  estado              EstadoCalificacion?
+  despachoSeccionalId String?
+  periodo             String?
+  tipoDespachoId      String?
+  municipio           String?
+  distrito            String?
+}
+
+enum EspecialidadDespacho {
+  Promiscuo
+  Penal
+  PenalAdolescentesConocimiento
+  PenalAdolescentesGarantias
+  PenalConocimiento
+  PenalGarantias
+  PenalMixto
+  PenalEspecializado
+  PenalEspecializadoExtincion
+  EjecucionPenas
+  Civil
+  CivilConocimientoLaboral
+  CivilEjecucionSentencias
+  Familia
+  FamiliaPromiscuo
+  Laboral
+  PeqCausas
+  Administrativo
+  AdministrativoSeccion1
+  AdministrativoSeccion2
+  AdministrativoSeccion3
+  AdministrativoSeccion4
+}
+
+enum CategoriaDespacho {
+  Municipal
+  Circuito
+  Tribunal
+}
+
+model TipoDespacho {
+  id                 String                     @id @default(auto()) @map("_id") @db.ObjectId
+  nombre             String
+  especialidad       EspecialidadDespacho
+  categoria          CategoriaDespacho
+  despachos          Despacho[]
+  capacidadesMaximas CapacidadMaximaRespuesta[]
+
+  @@unique([especialidad, categoria])
+  @@unique([nombre])
+}
+
+model CapacidadMaximaRespuesta {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  tipoDespachoId String       @db.ObjectId
+  tipoDespacho   TipoDespacho @relation(fields: [tipoDespachoId], references: [id])
+  periodo        Int
+  cantidad       Int
+}
+
+model Despacho {
+  id                    String                 @id @default(auto()) @map("_id") @db.ObjectId
+  codigo                String
+  nombre                String
+  numero                Int?
+  tipoDespachoId        String?                @db.ObjectId
+  tipoDespacho          TipoDespacho?          @relation(fields: [tipoDespachoId], references: [id])
+  municipio             String?
+  distrito              String?
+  registrosCalificacion RegistroCalificacion[]
+  registrosAudiencias   RegistroAudiencias[]
+  calificaciones        CalificacionDespacho[]
+  novedadesFuncionarios NovedadFuncionario[]
+}
+
+model Funcionario {
+  id                    String                 @id @default(auto()) @map("_id") @db.ObjectId
+  documento             String
+  nombre                String
+  novedades             NovedadFuncionario[]
+  registrosCalificacion RegistroCalificacion[]
+  calificaciones        CalificacionPeriodo[]
+  registrosAudiencias   RegistroAudiencias[]
+}
+
+model NovedadFuncionario {
+  id               String       @id @default(auto()) @map("_id") @db.ObjectId
+  type             String
+  from             DateTime     @db.Date
+  to               DateTime     @db.Date
+  days             Int
+  diasDescontables Int          @default(0)
+  notes            String
+  despachoId       String       @db.ObjectId
+  despacho         Despacho     @relation(fields: [despachoId], references: [id])
+  funcionarioId    String?      @db.ObjectId
+  funcionario      Funcionario? @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+}
+
+enum ClaseRegistroCalificacion {
+  oral
+  tutelas
+  escrito
+  garantias
+  otros
+}
+
+model RegistroAudiencias {
+  id                      String                 @id @default(auto()) @map("_id") @db.ObjectId
+  periodo                 Int // Año del registro
+  despachoId              String                 @db.ObjectId
+  despacho                Despacho               @relation(fields: [despachoId], references: [id])
+  funcionarioId           String                 @db.ObjectId
+  funcionario             Funcionario            @relation(fields: [funcionarioId], references: [id])
+  programadas             Int
+  atendidas               Int
+  aplazadasAjenas         Int
+  aplazadasJustificadas   Int
+  aplazadasNoJustificadas Int
+  calificacion            CalificacionDespacho[]
+
+  @@unique([despachoId, funcionarioId, periodo])
+}
+
+model RegistroCalificacion {
+  id                String                    @id @default(auto()) @map("_id") @db.ObjectId
+  periodo           Int // Año del registro
+  despachoId        String                    @db.ObjectId
+  despacho          Despacho                  @relation(fields: [despachoId], references: [id])
+  funcionarioId     String                    @db.ObjectId
+  funcionario       Funcionario               @relation(fields: [funcionarioId], references: [id])
+  clase             ClaseRegistroCalificacion
+  categoria         String
+  desde             DateTime                  @db.Date
+  hasta             DateTime                  @db.Date
+  dias              Int?
+  inventarioInicial Int
+  ingresoEfectivo   Int
+  cargaEfectiva     Int
+  egresoEfectivo    Int
+  conciliaciones    Int
+  inventarioFinal   Int
+  restan            Int
+  // Campo agregado al formato consolidado de estadísticas. No se incluyó en los primeros registros de la base de datos.
+  cargaBruta        Int?                      @default(0)
+  // Solo para registros con categoria "Consolidado"
+  calificacionId    String?                   @db.ObjectId
+  calificacion      CalificacionDespacho?     @relation(fields: [calificacionId], references: [id], onDelete: Cascade)
+
+  // Se incluye el campo calificacionId porque el mismo consolidado puede aparecer en más de una calificación cuando dos o 
+  // más funcionarios calificables trabajan en el mismo despacho en el mismo periodo.
+  // TODO: Separar los registros con la categoria "Consolidado" a una colección aparte.
+  @@unique([despachoId, funcionarioId, clase, categoria, desde, calificacionId])
+}
+
+model CalificacionSubfactor {
+  id                               String                    @id @default(auto()) @map("_id") @db.ObjectId
+  subfactor                        ClaseRegistroCalificacion
+  totalInventarioInicial           Int
+  cargaBaseCalificacionDespacho    Float
+  cargaBaseCalificacionFuncionario Float
+  egresoFuncionario                Int
+  cargaProporcional                Float
+  totalSubfactor                   Float
+  calificacionId                   String?                   @db.ObjectId
+  calificacion                     CalificacionDespacho?     @relation(fields: [calificacionId], references: [id], onDelete: Cascade)
+
+  @@unique([calificacionId, subfactor])
+}
+
+enum EstadoCalificacion {
+  borrador
+  revision
+  aprobada
+  devuelta
+  eliminada
+  archivada
+}
+
+model ObservacionCalificacion {
+  id             String              @id @default(auto()) @map("_id") @db.ObjectId
+  fecha          DateTime            @default(now()) @db.Date
+  autorId        String              @db.ObjectId
+  autor          User                @relation(fields: [autorId], references: [id])
+  estado         EstadoCalificacion
+  observaciones  String
+  calificacionId String              @db.ObjectId
+  calificacion   CalificacionPeriodo @relation(fields: [calificacionId], references: [id])
+}
+
+model CalificacionPeriodo {
+  id                    String                    @id @default(auto()) @map("_id") @db.ObjectId
+  estado                EstadoCalificacion
+  observaciones         ObservacionCalificacion[]
+  // Año de la calificacion
+  periodo               Int
+  funcionarioId         String                    @db.ObjectId
+  funcionario           Funcionario               @relation(fields: [funcionarioId], references: [id])
+  // Despacho que aprueba la calificación
+  despachoSeccionalId   String?                   @db.ObjectId
+  despachoSeccional     DespachoSeccional?        @relation(fields: [despachoSeccionalId], references: [id])
+  calificaciones        CalificacionDespacho[]
+  calificacionPonderada Float                     @default(0)
+
+  @@unique([funcionarioId, periodo])
+}
+
+model CalificacionDespacho {
+  id                                String                  @id @default(auto()) @map("_id") @db.ObjectId
+  calificacionId                    String                  @db.ObjectId
+  calificacion                      CalificacionPeriodo     @relation(fields: [calificacionId], references: [id])
+  despachoId                        String                  @db.ObjectId
+  despacho                          Despacho                @relation(fields: [despachoId], references: [id])
+  cargaEfectivaTotal                Int                     @default(0)
+  egresoEfectivoTotal               Int                     @default(0)
+  diasHabilesDespacho               Int
+  diasDescontados                   Int
+  diasLaborados                     Int
+  // Los días laborables son útiles para el cálculo de la calificación ponderada.
+  diasLaborables                    Int                     @default(0)
+  // Registros con categoria "Consolidado"
+  registrosConsolidados             RegistroCalificacion[]
+  subfactores                       CalificacionSubfactor[]
+  registroAudienciasId              String                  @db.ObjectId
+  registroAudiencias                RegistroAudiencias      @relation(fields: [registroAudienciasId], references: [id])
+  calificacionAudiencias            Float
+  factorOralMasAudiencias           Float
+  calificacionTotalFactorEficiencia Float
+
+  @@unique([despachoId, calificacionId])
+}
