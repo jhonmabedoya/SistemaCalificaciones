@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "mongodb"
-  url      = env("DATABASE_URL")
+  url      = "mongodb+srv://mabemu1998:4U5yJV8zHTayWqtz@cluster0.q292q.mongodb.net/MiBase?retryWrites=true&w=majority&appName=Cluster0"
 }
 
 enum UserRoles {
