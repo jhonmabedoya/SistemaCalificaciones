@@ -1,8 +1,8 @@
 import { Resend } from 'resend';
-import { RESEND_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
 
-const resend = new Resend(RESEND_API_KEY);
+const resend = new Resend(env.RESEND_API_KEY);
 
 type SendEmailProps = {
 	subject: string;
